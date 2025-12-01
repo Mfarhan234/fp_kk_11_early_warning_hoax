@@ -1,0 +1,6 @@
+google-generativeai
+python-dotenv
+Pillow
+matplotlib
+seaborn          
+scikit-learn

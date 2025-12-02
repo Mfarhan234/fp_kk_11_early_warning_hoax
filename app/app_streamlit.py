@@ -1,15 +1,24 @@
 # app/app_streamlit.py
-
 import io
 from typing import Dict, Any
+import os
+import sys
+
+# === Tambah: pastikan root project ke sys.path ===
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
 
 import numpy as np
 import streamlit as st
 from PIL import Image
 import matplotlib.pyplot as plt
 
-# Import modul lokal
-from src.fuzzy_system import hitung_resiko_hoaks
+# Import modul lokal (sekarang Python sudah tahu folder src ada di ROOT_DIR)
+from src.fuzzy_system import (
+    hitung_resiko_hoaks,
+    hitung_resiko_hoaks_pso,
+)
 from src.llm_features import (
     get_gemini_model,
     PROMPT_INSTRUKSI,
@@ -28,9 +37,7 @@ except Exception:
     BEST_W_GWO = np.array([1.0, 1.0, 1.0])
 
 
-# =====================================================================
 # Helper: panggil Gemini multimodal untuk 1 kasus (teks + 0/1/2 gambar)
-# =====================================================================
 def hitung_skor_llm_single(
     teks: str,
     file_postingan,
@@ -201,7 +208,7 @@ if hitung_btn:
             fmt = float(scores["kecurigaan_format"])
             kred = float(scores["kredibilitas_rendah"])
 
-            # --- Fuzzy baseline ---
+            # --- Fuzzy baseline (tanpa optimasi bobot) ---
             skor_fuzzy = hitung_resiko_hoaks(
                 intensitas_emosi=emosi,
                 kecurigaan_format=fmt,
@@ -209,17 +216,19 @@ if hitung_btn:
                 output_scale_100=True,
             )
 
-            # --- PSO: skala input dengan bobot PSO ---
-            vec = np.array([emosi, fmt, kred])
-            vec_pso = np.clip(vec * BEST_W_PSO, 0.0, 1.0)
-            skor_pso = hitung_resiko_hoaks(
-                intensitas_emosi=float(vec_pso[0]),
-                kecurigaan_format=float(vec_pso[1]),
-                kredibilitas_rendah=float(vec_pso[2]),
+            # --- Fuzzy + PSO (Opsi A: bobot hasil training offline) ---
+            # Di sini kita delegasikan scaling ke fungsi wrapper di fuzzy_system.
+            # Kalau mau, bisa teruskan BEST_W_PSO sebagai parameter weights.
+            skor_pso = hitung_resiko_hoaks_pso(
+                intensitas_emosi=emosi,
+                kecurigaan_format=fmt,
+                kredibilitas_rendah=kred,
+                weights=BEST_W_PSO,        # atau None kalau default dari config.py
                 output_scale_100=True,
             )
 
-            # --- GWO: skala input dengan bobot GWO ---
+            # --- Fuzzy + GWO (opsional, tetap pakai pola lama) ---
+            vec = np.array([emosi, fmt, kred])
             vec_gwo = np.clip(vec * BEST_W_GWO, 0.0, 1.0)
             skor_gwo = hitung_resiko_hoaks(
                 intensitas_emosi=float(vec_gwo[0]),
@@ -227,6 +236,7 @@ if hitung_btn:
                 kredibilitas_rendah=float(vec_gwo[2]),
                 output_scale_100=True,
             )
+
 
         st.session_state.hasil_analisis = {
             "scores": scores,
@@ -291,10 +301,12 @@ with col_left:
         st.write(rekomendasi_tindakan(skor_pso))
 
         st.caption(
-            f"Bobot PSO yang dipakai: {np.round(BEST_W_PSO, 3)}.\n"
-            "Bobot ini mengubah kontribusi emosi / format / kredibilitas "
-            "sebelum masuk ke fuzzy."
+        "Bobot PSO yang dipakai adalah hasil training offline pada core dataset UMPO "
+        f"(w = {np.round(BEST_W_PSO, 3)}). "
+        "Bobot ini menskalakan intensitas_emosi, kecurigaan_format, dan kredibilitas_rendah "
+        "sebelum masuk ke fuzzy Mamdani."
         )
+
 
     else:  # mode == "GWO"
         st.subheader("Hasil Fuzzy + Bobot GWO")

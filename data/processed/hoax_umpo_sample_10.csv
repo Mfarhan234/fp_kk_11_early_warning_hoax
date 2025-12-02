@@ -1,0 +1,15 @@
+sample_id,text,label_raw,label_resiko_hoaks
+1,"Ngeliat harimau yang endut gitu, jadi keinget tweet tentang kebun binatang di indonesia yang mulai gak bisa kasih makan satwa nya. Harimaunya kurus banget, krempeng sampe keliatan bentuk tulangnya",hoax,100
+2,"Puasa Puasa RT 
+@hunterisma
+: enak tuh ayam goreng :9 RT @lizzieluvee Gawat, morning sick. Dampak makan ayam goreng pedas semalam",hoax,100
+3,Viral!!! Mohon Sebarkan Garam Mengandung Pecahan Kaca: http://youtu.be/iUbcv2-nT1s?a melalui,hoax,100
+4,"Pake aja kalung mengkudu, terhindar dari penyakit gondong. Btw, ini serius lo",hoax,100
+5,"#Share Ternyata, Daun dan Akar Dandelion Bersifat Anti Kanker: Menurut penelitian, tanaman ini memiliki sifat ... http://bit.ly/1Hsblv4",hoax,100
+6,"Ampuh Turunkan Kolesterol, Ini 6 Manfaat Jeruk Nipis Campur Serai #JerukNipis via 
+@jpnncom",valid,0
+7,Ada peraturan motor 2 tak gaboleh lagi pake pertalite. Trus vespa saya minumnya apa? Minum pertamax aja batuk2 dia,valid,0
+8,Telapak Tangan Berkeringat Tanda Lemah Jantung?: Telapak tangan yang berkeringat bisa disebabkan apabila ia cemas. http://bit.ly/1sstIwM,valid,0
+9,"Vertigo Bukan Penyakit Turunan, Kapanpun Vertigo dapat Terjadi
+",valid,0
+10,"Manfaat Olahraga Pagi, Tingkatkan Fokus hingga Bakar Lemak",valid,0

@@ -3,29 +3,37 @@
 """
 Optimasi Fuzzy Input Scaling dengan Particle Swarm Optimization (PSO).
 
-Ide:
+Ide utama:
 - Input FIS: intensitas_emosi, kecurigaan_format, kredibilitas_rendah (0–1)
 - Kita beri skala w = [w1, w2, w3] sehingga:
-    emosi'  = clip(w1 * emosi,  0, 1)
-    format' = clip(w2 * format, 0, 1)
-    kred'   = clip(w3 * kred,   0, 1)
-- Nilai w dicari dengan PSO agar MSE terhadap label ahli minimal.
+      emosi'  = clip(w1 * emosi,  0, 1)
+      format' = clip(w2 * format, 0, 1)
+      kred'   = clip(w3 * kred,   0, 1)
+- Nilai w dicari dengan PSO agar MSE terhadap label (misal resiko_hoaks dari ahli/LLM)
+  menjadi sekecil mungkin.
 
 Catatan:
-- df harus punya kolom:
+- DataFrame yang dipakai minimal harus punya kolom:
     'intensitas_emosi', 'kecurigaan_format', 'kredibilitas_rendah', dan target_col
-- target_col misalnya: 'resiko_hoaks_ahli'
 """
 
 from __future__ import annotations
-from typing import Callable, Tuple, List, Dict
+
+from typing import Callable, Tuple, Dict
 import numpy as np
 import pandas as pd
-from src.fuzzy_system import hitung_resiko_hoaks
+
+import numpy as np
+
+BEST_W_PSO = np.array([0.5, 1.5, 1.33333334], dtype=float)
+
+if __name__ == "__main__":
+    from src.fuzzy_system import hitung_resiko_hoaks
+
 
 
 # ----------------------------------------------------------------------
-# PSO generik untuk vektor real-valued
+# 1. PSO generik untuk vektor real-valued
 # ----------------------------------------------------------------------
 
 
@@ -45,9 +53,9 @@ def pso_optimize(
 
     Parameters
     ----------
-    objective_fn : function
-        Fungsi f(x) yang menerima vektor 1D (shape = [dim]) dan
-        mengembalikan nilai fitness (semakin kecil semakin baik).
+    objective_fn : Callable
+        Fungsi f(x) yang menerima vektor 1D (shape = [dim])
+        dan mengembalikan nilai fitness (semakin kecil semakin baik).
     dim : int
         Dimensi ruang pencarian.
     bounds : (lower, upper)
@@ -57,17 +65,18 @@ def pso_optimize(
         Jumlah partikel dalam swarm.
     n_iters : int
         Jumlah iterasi PSO.
-    w, c1, c2 : float
-        Parameter PSO:
-        - w  : inertia
-        - c1 : cognitive (tarikan ke pbest)
-        - c2 : social (tarikan ke gbest)
+    w : float
+        Inertia weight.
+    c1 : float
+        Koefisien komponen kognitif.
+    c2 : float
+        Koefisien komponen sosial.
     seed : int | None
         Seed random untuk reprodusibilitas.
 
     Returns
     -------
-    dict dengan keys:
+    dict
         - 'best_position' : np.ndarray shape [dim]
         - 'best_fitness'  : float
         - 'history'       : list[float] (best_fitness per iter)
@@ -78,22 +87,25 @@ def pso_optimize(
     lower = np.asarray(lower, dtype=float)
     upper = np.asarray(upper, dtype=float)
 
-    # Inisialisasi posisi partikel (uniform di dalam bounds)
-    positions = rng.uniform(lower, upper, size=(n_particles, dim))
+    # Inisialisasi posisi dan kecepatan
+    positions = rng.uniform(low=lower, high=upper, size=(n_particles, dim))
     velocities = np.zeros_like(positions)
 
     # Evaluasi awal
     fitness = np.array([objective_fn(p) for p in positions])
 
+    # Personal best
     pbest_pos = positions.copy()
     pbest_fit = fitness.copy()
 
-    gbest_idx = np.argmin(fitness)
-    gbest_pos = positions[gbest_idx].copy()
-    gbest_fit = fitness[gbest_idx]
+    # Global best
+    min_idx = np.argmin(fitness)
+    gbest_pos = positions[min_idx].copy()
+    gbest_fit = float(fitness[min_idx])
 
-    history: List[float] = [float(gbest_fit)]
+    history: list[float] = [gbest_fit]
 
+    # Loop PSO
     for _ in range(n_iters):
         # Update velocity & position
         r1 = rng.random((n_particles, dim))
@@ -134,7 +146,7 @@ def pso_optimize(
 
 
 # ----------------------------------------------------------------------
-# Khusus: Optimasi scaling input FIS Mamdani
+# 2. Khusus: Optimasi scaling input FIS Mamdani
 # ----------------------------------------------------------------------
 
 
@@ -150,7 +162,7 @@ def _build_fuzzy_scaling_objective(
         - 'intensitas_emosi'
         - 'kecurigaan_format'
         - 'kredibilitas_rendah'
-        - target_col (label ahli, misal 'resiko_hoaks_ahli')
+        - target_col (label, misal 'resiko_hoaks')
     """
     for col in ["intensitas_emosi", "kecurigaan_format", "kredibilitas_rendah", target_col]:
         if col not in df.columns:
@@ -164,26 +176,23 @@ def _build_fuzzy_scaling_objective(
     kred = df["kredibilitas_rendah"].astype(float).to_numpy()
     y_true = df[target_col].astype(float).to_numpy()
 
-    dim = 3  # w_emosi, w_format, w_kred
+    # w = [w_emosi, w_format, w_kred]
+    dim = 3
     low, high = bounds_scale
     lower = np.full(dim, low, dtype=float)
     upper = np.full(dim, high, dtype=float)
 
     def objective(w: np.ndarray) -> float:
         """
-        w[0] = skala emosi
-        w[1] = skala format
-        w[2] = skala kredibilitas_rendah
+        w: np.ndarray shape [3]
         """
         w = np.asarray(w, dtype=float)
-        # aman-aman saja kalau PSO masukin nilai di luar, tapi kita clip juga
-        w = np.clip(w, lower, upper)
 
         emo_scaled = np.clip(emo * w[0], 0.0, 1.0)
         frm_scaled = np.clip(frm * w[1], 0.0, 1.0)
         kred_scaled = np.clip(kred * w[2], 0.0, 1.0)
 
-        preds = np.empty_like(y_true)
+        preds = np.empty_like(y_true, dtype=float)
         for i in range(len(preds)):
             preds[i] = hitung_resiko_hoaks(
                 intensitas_emosi=float(emo_scaled[i]),
@@ -212,25 +221,24 @@ def optimize_fuzzy_scaling_with_pso(
     Parameters
     ----------
     df : DataFrame
-        Dataset dengan fitur LLM dan label ahli.
+        Dataset dengan fitur LLM dan label (misal resiko_hoaks dari LLM/ahli).
     target_col : str
-        Nama kolom label (misal 'resiko_hoaks_ahli').
+        Nama kolom label (misal 'resiko_hoaks').
         Nilai biasanya 0–100 (sama skala dengan output fuzzy).
     n_particles, n_iters : int
         Hyperparameter PSO.
-    bounds_scale : (float, float)
-        Batas bawah & atas untuk skala (default 0.5–1.5).
+    bounds_scale : (low, high)
+        Batas bawah / atas untuk skala input (default 0.5–1.5).
     seed : int | None
         Seed random.
 
     Returns
     -------
-    dict:
-        {
-          'best_position': array([w_emosi, w_format, w_kred]),
-          'best_fitness': MSE_terbaik,
-          'history': list_MSE_per_iter
-        }
+    dict
+        Hasil dari pso_optimize():
+        - 'best_position' : np.ndarray [w_emosi, w_format, w_kred]
+        - 'best_fitness'  : MSE terbaik
+        - 'history'       : list MSE terbaik per iterasi
     """
     objective, dim, bounds = _build_fuzzy_scaling_objective(
         df=df,
@@ -250,3 +258,8 @@ def optimize_fuzzy_scaling_with_pso(
         seed=seed,
     )
     return result
+
+# ... kode kelas PSO, dsb ...
+
+# Hasil training offline pada core dataset UMPO (61 data)
+BEST_W_PSO = np.array([0.5, 1.5, 1.33333334], dtype=float)

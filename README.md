@@ -74,7 +74,7 @@ Windows (pakai Python launcher):
 
 ```bash
 py -3.12 -m venv .venv
-.\.venv\Scripts\activate
+source .venv/Scripts/activate
 ```
 
 > Pastikan di terminal muncul `(.venv)` di awal baris.

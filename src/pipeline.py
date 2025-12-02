@@ -14,12 +14,9 @@ Alur:
 """
 
 from __future__ import annotations
-
 from typing import Optional
-
 import os
 import pandas as pd
-
 from src.config import DATA_RAW_PATH, DATA_LLM_PATH
 from src.llm_features import hitung_skor_llm_df
 from src.fuzzy_system import hitung_resiko_hoaks

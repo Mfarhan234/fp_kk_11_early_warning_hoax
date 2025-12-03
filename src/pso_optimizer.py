@@ -259,7 +259,6 @@ def optimize_fuzzy_scaling_with_pso(
     )
     return result
 
-# ... kode kelas PSO, dsb ...
 
 # Hasil training offline pada core dataset UMPO (61 data)
 BEST_W_PSO = np.array([0.5, 1.5, 1.33333334], dtype=float)

@@ -96,6 +96,10 @@ Paket utama di `requirements.txt` antara lain:
 * `Pillow` – load gambar
 * `streamlit` – web UI sederhana
 
+Cara pakai streamlit
+
+streamlit run app/app_streamlit.py
+
 ---
 
 ## 3. Konfigurasi API Key (Gemini)

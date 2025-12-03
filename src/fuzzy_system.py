@@ -105,6 +105,7 @@ def _hitung_rule_strengths(
     """
     Hitung firing strength tiap rule.
     Return list (alpha, label_output) dengan label: 'rendah' / 'sedang' / 'tinggi'.
+    Basis aturan: 10 rule, masing-masing memakai 3 variabel (emosi, format, kredibilitas).
     """
     e = float(intensitas_emosi)
     f = float(kecurigaan_format)
@@ -125,35 +126,55 @@ def _hitung_rule_strengths(
 
     rules: List[Tuple[float, str]] = []
 
-    # R1: emosi tinggi & format tinggi & kred_rendah tinggi → resiko tinggi
-    alpha1 = min(e_H, f_H, k_H)
-    rules.append((alpha1, "tinggi"))
+    # Risiko Rendah
 
-    # R2: format tinggi & kred_rendah sedang/tinggi → resiko tinggi
-    alpha2 = min(f_H, max(k_M, k_H))
-    rules.append((alpha2, "tinggi"))
+    # R1: emosi rendah & format rendah & kred_rendah rendah → rendah
+    alpha1 = min(e_L, f_L, k_L)
+    rules.append((alpha1, "rendah"))
 
-    # R3: emosi sedang & format sedang & kred_rendah sedang → resiko sedang
-    alpha3 = min(e_M, f_M, k_M)
-    rules.append((alpha3, "sedang"))
+    # R2: (emosi rendah/sedang) & format rendah & kred_rendah sedang → rendah
+    alpha2 = min(max(e_L, e_M), f_L, k_M)
+    rules.append((alpha2, "rendah"))
 
-    # R4: format rendah & kred_rendah rendah → resiko rendah
-    alpha4 = min(f_L, k_L)
-    rules.append((alpha4, "rendah"))
+    # R3: emosi rendah & format sedang & kred_rendah rendah → rendah
+    alpha3 = min(e_L, f_M, k_L)
+    rules.append((alpha3, "rendah"))
 
-    # R5: emosi rendah & format rendah & kred_rendah tinggi → resiko sedang
-    alpha5 = min(e_L, f_L, k_H)
+    # Risiko Sedang
+
+    # R4: emosi sedang & format sedang & kred_rendah sedang → sedang
+    alpha4 = min(e_M, f_M, k_M)
+    rules.append((alpha4, "sedang"))
+
+    # R5: emosi rendah & format sedang & kred_rendah sedang → sedang
+    alpha5 = min(e_L, f_M, k_M)
     rules.append((alpha5, "sedang"))
 
-    # R6: emosi tinggi, kred_rendah sedang/tinggi (emosi dari isi, bukan format) → sedang
-    alpha6 = min(e_H, max(k_M, k_H))
+    # R6: emosi sedang & format rendah & kred_rendah tinggi → sedang
+    alpha6 = min(e_M, f_L, k_H)
     rules.append((alpha6, "sedang"))
 
-    # R7: emosi sedang & format tinggi & kred_rendah rendah → resiko sedang
-    alpha7 = min(e_M, f_H, k_L)
+    # R7: emosi tinggi & format sedang & kred_rendah sedang → sedang
+    alpha7 = min(e_H, f_M, k_M)
     rules.append((alpha7, "sedang"))
 
+    # Risiko Tinggi
+
+    # R8 (revisi): (emosi sedang/tinggi) & format tinggi & kred_rendah tinggi → tinggi
+    alpha8 = min(max(e_M, e_H), f_H, k_H)
+    rules.append((alpha8, "tinggi"))
+
+
+    # R9: (emosi sedang/tinggi) & format tinggi & kred_rendah sedang → tinggi
+    alpha9 = min(max(e_M, e_H), f_H, k_M)
+    rules.append((alpha9, "tinggi"))
+
+    # R10: emosi tinggi & format sedang & kred_rendah tinggi → tinggi
+    alpha10 = min(e_H, f_M, k_H)
+    rules.append((alpha10, "tinggi"))
+
     return rules
+
 
 # mapping label → membership output
 OUTPUT_MFS: Dict[str, Callable[[float], float]] = {

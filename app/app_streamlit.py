@@ -14,7 +14,7 @@ import streamlit as st
 from PIL import Image
 import matplotlib.pyplot as plt
 
-# Import modul lokal (sekarang Python sudah tahu folder src ada di ROOT_DIR)
+# Import modul lokal
 from src.fuzzy_system import (
     hitung_resiko_hoaks,
     hitung_resiko_hoaks_pso,
@@ -22,22 +22,19 @@ from src.fuzzy_system import (
 from src.llm_features import (
     get_gemini_model,
     PROMPT_INSTRUKSI,
-    _parse_scores_from_text,  # kita pakai helper parsing JSON dari llm_features
+    _parse_scores_from_text,
 )
 
-# Bobot PSO & GWO (fallback ke [1,1,1] kalau belum didefinisikan di modul)
+# Bobot PSO (fallback ke [1,1,1] kalau belum didefinisikan di modul)
 try:
-    from src.pso_optimizer import BEST_W_PSO  # silakan definisikan di pso_optimizer.py
+    from src.pso_optimizer import BEST_W_PSO  # definisikan di pso_optimizer.py
 except Exception:
     BEST_W_PSO = np.array([1.0, 1.0, 1.0])
 
-try:
-    from src.gwo_optimizer import BEST_W_GWO  # silakan definisikan di gwo_optimizer.py
-except Exception:
-    BEST_W_GWO = np.array([1.0, 1.0, 1.0])
 
-
+# =====================================================================
 # Helper: panggil Gemini multimodal untuk 1 kasus (teks + 0/1/2 gambar)
+# =====================================================================
 def hitung_skor_llm_single(
     teks: str,
     file_postingan,
@@ -53,14 +50,12 @@ def hitung_skor_llm_single(
     """
     model = get_gemini_model("gemini-2.5-flash")
 
-    # Siapkan parts multimodal
     parts: list[Any] = [
         PROMPT_INSTRUKSI,
         "\n\nTEKS YANG HARUS DINILAI:\n\n",
         teks or "",
     ]
 
-    # Convert gambar upload menjadi PIL.Image lalu kirim ke Gemini
     if file_postingan is not None:
         img_post = Image.open(file_postingan).convert("RGB")
         parts.append("\n\n[Gambar Postingan]")
@@ -112,20 +107,16 @@ def rekomendasi_tindakan(score: float) -> str:
 def plot_fuzzy_output(score: float, title: str = "Fuzzy Output: resiko_hoaks"):
     x = np.linspace(0, 100, 500)
 
-    # Membership triangular sederhana
     def low(x):
-        # segitiga: (0,1) -> (40,0)
         return np.clip((40 - x) / 40, 0, 1)
 
     def medium(x):
-        # segitiga: (20,0) -> (50,1) -> (80,0)
         return np.maximum(
             np.minimum((x - 20) / (50 - 20), (80 - x) / (80 - 50)),
             0,
         )
 
     def high(x):
-        # segitiga: (60,0) -> (100,1)
         return np.clip((x - 60) / (100 - 60), 0, 1)
 
     y_low = low(x)
@@ -137,12 +128,10 @@ def plot_fuzzy_output(score: float, title: str = "Fuzzy Output: resiko_hoaks"):
     ax.plot(x, y_med, label="sedang")
     ax.plot(x, y_high, label="tinggi")
 
-    # area shading
     ax.fill_between(x, 0, y_low, alpha=0.1)
     ax.fill_between(x, 0, y_med, alpha=0.1)
     ax.fill_between(x, 0, y_high, alpha=0.1)
 
-    # garis vertikal skor
     ax.axvline(score, color="k")
 
     ax.set_title(title)
@@ -160,14 +149,14 @@ def plot_fuzzy_output(score: float, title: str = "Fuzzy Output: resiko_hoaks"):
 # Streamlit App
 # =====================================================================
 st.set_page_config(
-    page_title="Early Warning Hoax – Fuzzy + PSO + GWO",
+    page_title="Early Warning Hoax – Fuzzy + PSO",
     layout="wide",
 )
 
 st.sidebar.title("Input Konten")
 
-# Mode tampilan (hanya mempengaruhi bagian main)
-mode = st.sidebar.radio("Lihat hasil:", ["Fuzzy", "PSO", "GWO"])
+# Mode tampilan (hanya Fuzzy & PSO)
+mode = st.sidebar.radio("Lihat hasil:", ["Fuzzy", "PSO"])
 
 # Input multimodal
 teks_input = st.sidebar.text_area(
@@ -203,12 +192,11 @@ if hitung_btn:
                 file_profil=file_profil,
             )
 
-            # Skor dasar dari LLM
             emosi = float(scores["intensitas_emosi"])
             fmt = float(scores["kecurigaan_format"])
             kred = float(scores["kredibilitas_rendah"])
 
-            # --- Fuzzy baseline (tanpa optimasi bobot) ---
+            # Fuzzy baseline
             skor_fuzzy = hitung_resiko_hoaks(
                 intensitas_emosi=emosi,
                 kecurigaan_format=fmt,
@@ -216,39 +204,25 @@ if hitung_btn:
                 output_scale_100=True,
             )
 
-            # --- Fuzzy + PSO (Opsi A: bobot hasil training offline) ---
-            # Di sini kita delegasikan scaling ke fungsi wrapper di fuzzy_system.
-            # Kalau mau, bisa teruskan BEST_W_PSO sebagai parameter weights.
+            # Fuzzy + PSO (menggunakan BEST_W_PSO)
             skor_pso = hitung_resiko_hoaks_pso(
                 intensitas_emosi=emosi,
                 kecurigaan_format=fmt,
                 kredibilitas_rendah=kred,
-                weights=BEST_W_PSO,        # atau None kalau default dari config.py
+                weights=BEST_W_PSO,
                 output_scale_100=True,
             )
-
-            # --- Fuzzy + GWO (opsional, tetap pakai pola lama) ---
-            vec = np.array([emosi, fmt, kred])
-            vec_gwo = np.clip(vec * BEST_W_GWO, 0.0, 1.0)
-            skor_gwo = hitung_resiko_hoaks(
-                intensitas_emosi=float(vec_gwo[0]),
-                kecurigaan_format=float(vec_gwo[1]),
-                kredibilitas_rendah=float(vec_gwo[2]),
-                output_scale_100=True,
-            )
-
 
         st.session_state.hasil_analisis = {
             "scores": scores,
             "skor_fuzzy": skor_fuzzy,
             "skor_pso": skor_pso,
-            "skor_gwo": skor_gwo,
         }
 
 # ============================
 # Tampilan utama
 # ============================
-st.title("🧠 Early Warning Hoax – Demo Fuzzy + Metaheuristic")
+st.title("🧠 Early Warning Hoax – Demo Fuzzy + PSO")
 
 st.markdown(
     """
@@ -260,11 +234,8 @@ kemudian:
    - `kecurigaan_format`
    - `kredibilitas_rendah`
 2. Skor tersebut masuk ke **Fuzzy Mamdani** → `resiko_hoaks` (0–100).
-3. Halaman **PSO** dan **GWO** menunjukkan variasi skor jika input
-   dimodifikasi dengan bobot hasil optimasi.
-
-> Catatan: kalau konstanta `BEST_W_PSO` / `BEST_W_GWO` belum diisi di modul,
-> bobot default `[1,1,1]` dipakai sehingga hasil ≈ sama dengan fuzzy baseline.
+3. Mode **PSO** menunjukkan variasi skor ketika input terlebih dulu
+   diskalakan dengan bobot hasil optimasi.
 """
 )
 
@@ -277,7 +248,6 @@ if hasil is None:
 scores = hasil["scores"]
 skor_fuzzy = hasil["skor_fuzzy"]
 skor_pso = hasil["skor_pso"]
-skor_gwo = hasil["skor_gwo"]
 
 # ──────────────────────────────────────────────
 # Layout 2 kolom
@@ -301,24 +271,10 @@ with col_left:
         st.write(rekomendasi_tindakan(skor_pso))
 
         st.caption(
-        "Bobot PSO yang dipakai adalah hasil training offline pada core dataset UMPO "
-        f"(w = {np.round(BEST_W_PSO, 3)}). "
-        "Bobot ini menskalakan intensitas_emosi, kecurigaan_format, dan kredibilitas_rendah "
-        "sebelum masuk ke fuzzy Mamdani."
-        )
-
-
-    else:  # mode == "GWO"
-        st.subheader("Hasil Fuzzy + Bobot GWO")
-
-        st.metric("Skor Resiko Hoaks (GWO)", f"{skor_gwo:.2f}")
-        st.write("Kategori:", f"**{kategori_resiko(skor_gwo)}**")
-        st.write(rekomendasi_tindakan(skor_gwo))
-
-        st.caption(
-            f"Bobot GWO yang dipakai: {np.round(BEST_W_GWO, 3)}.\n"
-            "Sama seperti PSO, bobot ini mengatur seberapa besar "
-            "pengaruh masing-masing fitur ke fuzzy."
+            "Bobot PSO yang dipakai adalah hasil training offline pada core dataset UMPO "
+            f"(w = {np.round(BEST_W_PSO, 3)}). "
+            "Bobot ini menskalakan intensitas_emosi, kecurigaan_format, dan kredibilitas_rendah "
+            "sebelum masuk ke fuzzy Mamdani."
         )
 
     st.markdown("---")
@@ -333,10 +289,7 @@ with col_right:
 
     if mode == "Fuzzy":
         fig = plot_fuzzy_output(skor_fuzzy, "Fuzzy Output – Baseline")
-    elif mode == "PSO":
+    else:  # PSO
         fig = plot_fuzzy_output(skor_pso, "Fuzzy Output – Input Terbobot PSO")
-    else:
-        fig = plot_fuzzy_output(skor_gwo, "Fuzzy Output – Input Terbobot GWO")
 
     st.pyplot(fig)
-

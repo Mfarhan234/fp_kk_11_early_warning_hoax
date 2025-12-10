@@ -4,7 +4,6 @@ from typing import Dict, Any
 import os
 import sys
 
-# === Tambah: pastikan root project ke sys.path ===
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
@@ -25,16 +24,11 @@ from src.llm_features import (
     _parse_scores_from_text,
 )
 
-# Bobot PSO (fallback ke [1,1,1] kalau belum didefinisikan di modul)
 try:
-    from src.pso_optimizer import BEST_W_PSO  # definisikan di pso_optimizer.py
+    from src.pso_optimizer import BEST_W_PSO  
 except Exception:
     BEST_W_PSO = np.array([1.0, 1.0, 1.0])
 
-
-# =====================================================================
-# Helper: panggil Gemini multimodal untuk 1 kasus (teks + 0/1/2 gambar)
-# =====================================================================
 def hitung_skor_llm_single(
     teks: str,
     file_postingan,
@@ -71,10 +65,6 @@ def hitung_skor_llm_single(
     scores = _parse_scores_from_text(raw_text)
     return scores
 
-
-# =====================================================================
-# Helper: kategorisasi & rekomendasi
-# =====================================================================
 def kategori_resiko(score: float) -> str:
     if score < 33:
         return "Rendah"
@@ -100,10 +90,6 @@ def rekomendasi_tindakan(score: float) -> str:
         "laporkan ke pihak terkait bila perlu dan berikan edukasi ke orang sekitar."
     )
 
-
-# =====================================================================
-# Helper: plot membership fungsi output hoax_risk
-# =====================================================================
 def plot_fuzzy_output(score: float, title: str = "Fuzzy Output: resiko_hoaks"):
     x = np.linspace(0, 100, 500)
 
@@ -144,10 +130,6 @@ def plot_fuzzy_output(score: float, title: str = "Fuzzy Output: resiko_hoaks"):
 
     return fig
 
-
-# =====================================================================
-# Streamlit App
-# =====================================================================
 st.set_page_config(
     page_title="Early Warning Hoax – Fuzzy + PSO",
     layout="wide",
@@ -219,9 +201,6 @@ if hitung_btn:
             "skor_pso": skor_pso,
         }
 
-# ============================
-# Tampilan utama
-# ============================
 st.title("🧠 Early Warning Hoax – Demo Fuzzy + PSO")
 
 st.markdown(
@@ -249,12 +228,8 @@ scores = hasil["scores"]
 skor_fuzzy = hasil["skor_fuzzy"]
 skor_pso = hasil["skor_pso"]
 
-# ──────────────────────────────────────────────
-# Layout 2 kolom
-# ──────────────────────────────────────────────
 col_left, col_right = st.columns([1, 1])
 
-# ====================== KIRI: ringkasan skor =========================
 with col_left:
     if mode == "Fuzzy":
         st.subheader("Hasil Fuzzy (Baseline)")
@@ -283,7 +258,6 @@ with col_left:
     st.write(f"- kecurigaan_format: `{scores['kecurigaan_format']:.2f}`")
     st.write(f"- kredibilitas_rendah: `{scores['kredibilitas_rendah']:.2f}`")
 
-# ====================== KANAN: visualisasi fuzzy =====================
 with col_right:
     st.subheader("Visualisasi Fuzzy Output")
 
